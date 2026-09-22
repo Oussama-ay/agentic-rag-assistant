@@ -5,9 +5,9 @@ using retrieval augmented generation (RAG), agent tools, and source citations.
 
 ## Current status
 
-Milestone 2: UTF-8 text loading, chunking, local embeddings, and in-memory vector
-storage, plus a working FastAPI health endpoint. A retrieval command, PDF support,
-answer generation, and agents are not implemented yet.
+Milestone 3: UTF-8 text loading, chunking, local embeddings, in-memory vector
+storage, and semantic retrieval, plus a working FastAPI health endpoint.
+PDF support, answer generation, and agents are not implemented yet.
 
 ## Requirements
 
@@ -58,8 +58,10 @@ app/
     embeddings.py   Local embedding model and LangChain adapter
     vector_store.py Embeds and stores chunks in memory
     index.py        Command-line indexing demo
+    retriever.py    Top-k similarity search, independent of the API
+    search.py       Command-line question and retrieved passages
 examples/documents/ Small tracked sample documents
-tests/             Document loading and chunking checks
+tests/             Document, storage, and retrieval checks
 data/
   .gitkeep          Keeps the empty data directory in Git
 .env.example       Future configuration placeholders, without secrets
@@ -157,6 +159,38 @@ every chunk, so you can see the output of this stage before adding retrieval.
   model inputs are tokenized and have their own length limits. The small default
   chunks are a starting point, not a guarantee for all languages or inputs.
 
+## Retrieve relevant passages
+
+```bash
+python -m app.rag.search examples/documents/rag_intro.txt "Why do chunks overlap?" --top-k 2
+```
+
+This command indexes the file, embeds the question using the same local model,
+and returns up to `top_k` chunks ordered by descending cosine similarity.
+The default is three results. Each result prints its text, source filename,
+zero-based chunk index, character offset, and score. No answer-generating LLM
+is involved.
+
+```text
+Question → query embedding → cosine similarity against stored vectors → top-k chunks
+```
+
+The reusable function is `retrieve(query, store, top_k=3)`. It returns a list of
+`(Document, score)` pairs. Indexing happens separately, so callers can reuse a
+store for multiple questions. The command-line demo rebuilds the index each run.
+
+Cosine similarity compares the directions of two vectors. Scores range from
+-1 to 1 (subject to floating-point rounding), with larger values indicating
+more similar directions. A score is **not a confidence percentage**.
+The sample question ranked the passage explaining overlap first, at about 0.775
+in a local run; exact scores can vary with the runtime.
+
+`top_k` must be a positive integer and the question must contain text. An empty
+store returns no results; requesting more chunks than exist returns all of them.
+There is currently no relevance threshold: even an unrelated question can return
+chunks from a nonempty store. Retrieval alone does not establish that the evidence
+is sufficient to answer a question.
+
 ## Verification
 
 ```bash
@@ -178,20 +212,27 @@ nonzero, 384-dimensional output and verifies their stored text and metadata:
 RUN_LOCAL_EMBEDDINGS=1 python -m unittest discover -s tests -v
 ```
 
-This test may download the model on its first run. It verifies model execution
-and storage, not retrieval quality; retrieval evaluation is the next milestone.
+These integration tests may download the model on their first run. They also
+check three questions about the tracked sample document: overlap, question
+embeddings, and insufficient evidence. Each expected passage must rank first.
+This small smoke evaluation is not a general retrieval-quality benchmark.
+
+The normal suite checks retrieval ordering against known cosine scores, source
+metadata preservation, invalid questions and `top_k`, an empty index, and fewer
+available chunks than requested. Its fixed-vector tests require no model download.
 
 ## Roadmap
 
 - [x] Project setup and health endpoint
 - [x] Document loading and chunking (plain text)
 - [x] Local embeddings and in-memory vector storage
-- [ ] Retrieval
+- [x] Semantic retrieval with scored source passages
 - [ ] Grounded answers with sources
 - [ ] Retrieval tools and agent orchestration
 - [ ] Subagent analysis
 - [ ] Document upload and question API endpoints
-- [ ] Retrieval and API tests (document processing tests included)
+- [x] Document, storage, and retrieval tests
+- [ ] API tests
 - [ ] Docker packaging
 - [ ] Architecture documentation and a reproducible demo
 - [ ] Optional frontend
