@@ -1,0 +1,15 @@
+Retrieval augmented generation
+
+RAG connects a language model to information from documents. Before answering a question, the application retrieves relevant passages and includes them in the model's input. The answer should be supported by those passages, and citations should let a reader inspect the original sources.
+
+Loading and chunking
+
+A loader reads a file into text and records metadata such as its filename. A splitter breaks the text into smaller chunks. Small chunks help retrieval focus on specific topics, while excessively small chunks can lose context. Overlap repeats some nearby text so an idea near a boundary is less likely to lose its surrounding explanation.
+
+Embeddings and retrieval
+
+An embedding represents text as a vector of numbers. The application stores a vector for each chunk. When a question arrives, it embeds the question and compares that vector with the stored chunk vectors. Similarity search selects candidate passages; similarity alone does not guarantee that a passage answers the question.
+
+Grounded answers
+
+The generation step receives the question and retrieved evidence. If the evidence is insufficient, the assistant should say so. Source metadata must travel with each chunk through retrieval so the final answer can identify which document supports a claim.
